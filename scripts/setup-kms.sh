@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Installs, initializes, unseals, and configures OpenBao for Simplyblock KMS.
+# Installs, initializes, and unseals OpenBao.
+# Simulates what a customer would do to get their Vault running.
+# After this, run configure-kms.sh to integrate it with SimplyBlock.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,20 +18,18 @@ info() { echo "[INFO]  $*"; }
 warn() { echo "[WARN]  $*" >&2; }
 die()  { echo "[ERROR] $*" >&2; exit 1; }
 
-bao() {
-  kubectl -n "$NAMESPACE" exec -i "$POD" -- \
-    env BAO_ADDR="$BAO_ADDR" BAO_TOKEN="$ROOT_TOKEN" bao "$@"
-}
-
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   cat <<EOF
 Usage: $0
 
+Installs OpenBao via Helm, initializes, and unseals it.
+After this, run configure-kms.sh to integrate it with SimplyBlock.
+
 Env vars:
-  NAMESPACE         Kubernetes namespace        (default: vault)
-  STORAGE_CLASS     StorageClass for data PVC   (default: local-path)
-  UNSEAL_KEYS_FILE  File to save init output    (default: stdout only)
-  BAO_TOKEN         Skip init/unseal, use token (default: run init)
+  NAMESPACE         Kubernetes namespace for OpenBao   (default: vault)
+  STORAGE_CLASS     StorageClass for data PVC          (default: local-path)
+  UNSEAL_KEYS_FILE  File to save init output           (default: stdout only)
+  BAO_TOKEN         Skip init/unseal, use token        (default: run init)
 EOF
   exit 0
 fi
@@ -55,7 +55,9 @@ kubectl -n "$NAMESPACE" wait pod/"$POD" \
   --for=jsonpath='{.status.phase}'=Running --timeout=120s
 
 # ── Init + unseal ──────────────────────────────────────────────────────────────
-if [[ -z "$ROOT_TOKEN" ]]; then
+if [[ -n "$ROOT_TOKEN" ]]; then
+  info "Skipping init/unseal — using provided BAO_TOKEN"
+else
   info "Initializing OpenBao..."
   INIT_OUTPUT="$(kubectl -n "$NAMESPACE" exec "$POD" -- \
     env BAO_ADDR="$BAO_ADDR" bao operator init 2>&1)"
@@ -88,48 +90,10 @@ if [[ -z "$ROOT_TOKEN" ]]; then
 
   info "Waiting for $POD to be ready..."
   kubectl -n "$NAMESPACE" wait pod/"$POD" --for=condition=Ready --timeout=60s
-else
-  info "Skipping init/unseal — using provided BAO_TOKEN"
-fi
 
-# ── Configure ──────────────────────────────────────────────────────────────────
-info "Writing webappapi-policy..."
-bao policy write simplyblock-webappapi-policy - <<'EOF'
-path "simplyblock/transit/keys/*" {
-  capabilities = ["create", "update", "read", "delete"]
-}
-path "simplyblock/transit/datakey/plaintext/*" {
-  capabilities = ["create", "update"]
-}
-path "simplyblock/transit/datakey/wrapped/*" {
-  capabilities = ["create", "update"]
-}
-path "simplyblock/transit/encrypt/*" {
-  capabilities = ["create", "update"]
-}
-path "simplyblock/transit/decrypt/*" {
-  capabilities = ["create", "update"]
-}
-path "simplyblock/kv/*" {
-  capabilities = ["create", "read", "update", "delete"]
-}
-EOF
-
-info "Enabling cert auth..."
-bao auth enable cert || warn "cert auth already enabled, continuing..."
-bao write auth/cert/certs/simplyblock-webappapi \
-  certificate=@/openbao/tls/ca.crt \
-  allowed_dns_sans="simplyblock-webappapi" \
-  token_policies=simplyblock-webappapi-policy \
-  token_ttl=10m \
-  token_max_ttl=30m
-
-info "Enabling secrets engines..."
-bao secrets enable -path=simplyblock/transit transit        || warn "transit already enabled, continuing..."
-bao secrets enable -path=simplyblock/kv kv  || warn "kv already enabled, continuing..."
-
-# ── Done ───────────────────────────────────────────────────────────────────────
-info "Done."
-if [[ -z "${BAO_TOKEN:-}" ]]; then
   info "Root token: $ROOT_TOKEN  (store it securely)"
 fi
+
+info "Done. OpenBao is running at $BAO_ADDR"
+info "Next: run configure-kms.sh to integrate with SimplyBlock:"
+info "  VAULT_CLI=bao VAULT_ADDR=$BAO_ADDR VAULT_TOKEN=$ROOT_TOKEN ./configure-kms.sh"
