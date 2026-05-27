@@ -159,6 +159,22 @@ kind: ClusterRole
 metadata:
   name: simplyblock-operator-clusterrole
 rules:
+# configmaps — controllers read/write configmaps for node configuration state
+#   in both the operator namespace and the StorageNode namespace (which may differ).
+# events — all controllers post Warning/Normal events against their CRs so
+#   kubectl describe surfaces reconcile progress and errors.
+# persistentvolumeclaims — BackupRestore controller creates a PVC for each
+#   restored volume (ensurePVC in backuprestore_controller.go).
+# pods — NodeDrain controller patches drain labels onto SPDK-proxy pods to
+#   coordinate safe eviction order; StorageCluster controller deletes the
+#   storage-node pod to trigger a DaemonSet restart during node recycling.
+# secrets — StorageCluster controller writes cluster UUID/secret and the CSI
+#   credentials secret (simplyblock-csi-secret-v2) in the operator namespace;
+#   StorageNode controller reads the cluster secret for API auth.
+# services — StorageNode controller creates/updates the headless storage-node-api
+#   and spdk-proxy Services used for per-pod stable DNS addressing.
+# serviceaccounts — operator creates simplyblock-storage-node-sa for the
+#   storage-node DaemonSet pod in every StorageNode namespace.
 - apiGroups:
   - ""
   resources:
@@ -166,8 +182,6 @@ rules:
   - events
   - persistentvolumeclaims
   - pods
-  - pods/exec
-  - namespaces
   - secrets
   - services
   - serviceaccounts
@@ -179,10 +193,23 @@ rules:
   - patch
   - update
   - watch
+# namespaces — read-only lookup used by controllers to verify target namespaces
+#   exist before creating resources in them. Write verbs are not needed; the
+#   operator works within pre-existing namespaces only.
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+# daemonsets — StorageNode controller owns the storage-node DaemonSet lifecycle:
+#   creates it on first StorageNode CR, updates it on image/config changes,
+#   and deletes it on cleanup.
 - apiGroups:
   - apps
   resources:
-  - deployments
   - daemonsets
   verbs:
   - create
@@ -192,6 +219,8 @@ rules:
   - patch
   - update
   - watch
+# jobs — operator submits and cleans up one-shot init Jobs when a storage node
+#   first joins the cluster (hugepage setup, NVMe driver binding, etc.).
 - apiGroups:
   - batch
   resources:
@@ -205,6 +234,8 @@ rules:
   - update
   - watch
 {{- if and .Values.tls.enabled (eq .Values.tls.provider "cert-manager") }}
+# certificates — cert-manager TLS certificates for the storage-node-api and
+#   spdk-proxy Services; created and rotated by the StorageNode controller.
 - apiGroups:
   - cert-manager.io
   resources:
@@ -218,6 +249,9 @@ rules:
   - update
   - watch
 {{- end }}
+# nodes — operator reads node labels and cordon state to schedule DaemonSets
+#   correctly; patches storage.simplyblock.io/* labels to track storage node
+#   membership and operational state.
 - apiGroups:
   - ""
   resources:
@@ -228,6 +262,9 @@ rules:
   - watch
   - update
   - patch
+# persistentvolumes — BackupRestore controller creates a cluster-scoped PV for
+#   each restored volume (ensurePV in backuprestore_controller.go). PVs are
+#   cluster-scoped so a ClusterRole is required.
 - apiGroups:
   - ""
   resources:
@@ -239,6 +276,8 @@ rules:
   - watch
   - update
   - patch
+# storageclasses — operator creates a StorageClass per storage pool so PVCs
+#   can reference the correct simplyblock.io provisioner and pool parameters.
 - apiGroups:
   - storage.k8s.io
   resources:
@@ -249,23 +288,14 @@ rules:
   - get
   - list
   - watch
+# clusterroles + clusterrolebindings — operator creates simplyblock-storage-node-role
+#   and its ClusterRoleBinding so the storage-node DaemonSet SA can manage SPDK
+#   Jobs and Pods on every worker node.
+#   TODO(INCIDENT-003) restrict with resourceNames once remediation is complete.
 - apiGroups:
   - "rbac.authorization.k8s.io"
   resources:
-  - roles
   - clusterroles
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - watch
-  - update
-  - patch
-- apiGroups:
-  - "rbac.authorization.k8s.io"
-  resources:
-  - rolebindings
   - clusterrolebindings
   verbs:
   - create
@@ -275,6 +305,9 @@ rules:
   - watch
   - update
   - patch
+# poddisruptionbudgets — NodeDrain controller creates per-node PDBs (maxUnavailable=0)
+#   to prevent Kubernetes evicting more than one storage-node pod at a time during
+#   cluster upgrades or node drain operations.
 - apiGroups:
   - policy
   resources:
@@ -287,6 +320,9 @@ rules:
   - patch
   - update
   - watch
+# OpenShift only — operator configures kubelet CPU management and core isolation
+#   via MachineConfig/KubeletConfig objects; MachineConfigPool is watched to
+#   track rollout progress after each config change.
 - apiGroups:
   - machineconfiguration.openshift.io
   resources:
@@ -300,6 +336,9 @@ rules:
   - patch
   - update
   - watch
+# endpointslices — StorageNode controller maintains a custom EndpointSlice for
+#   the headless storage-node-api and spdk-proxy Services so each pod has a
+#   stable DNS entry (<nodehostname>.<svc>.<ns>.svc.cluster.local.
 - apiGroups:
   - discovery.k8s.io
   resources:

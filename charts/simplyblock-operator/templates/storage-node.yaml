@@ -11,26 +11,38 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: simplyblock-storage-node-role
 rules:
+# pods — spdk_process_start() creates snode-spdk-pod-* and simplyblock-fluentd-*
+# via create_namespaced_pod(); spdk_process_kill() removes them via
+# delete_namespaced_pod(); _is_pod_up()/_is_pod_present() poll
+# list_namespaced_pod() to check SPDK container readiness.
 - apiGroups: [""]
-  resources: ["pods", "namespaces", "pods/exec"]
+  resources: ["pods"]
   verbs: ["list", "get", "create", "delete", "watch"]
-- apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["create", "delete"]
+# jobs — spdk_process_start() submits up to three namespaced Jobs sequentially
+# (storage_init_job for hugepages + driver binding, ubuntu_kernel_extra for
+# Ubuntu kernel modules, and a core-isolation/CPU-topology Job when enabled).
+# Each Job is deleted after completion; stale Jobs from prior crashes are purged
+# before re-creation. read_namespaced_job() checks for pre-existing Jobs and
+# wait_for_job_completion() polls until done.
 - apiGroups: ["batch"]
   resources: ["jobs"]
   verbs: ["create", "delete", "get", "list", "watch"]
+# nodes — spdk_process_start() calls read_node() in a retry loop to detect
+# whether the node is cordoned (spec.unschedulable) before starting SPDK.
+# update+patch are required to write storage.simplyblock.io/* labels and
+# annotations back to the Node so the operator and control plane can observe
+# node-level storage state without querying the storage node API directly.
 - apiGroups: [""]
   resources: ["nodes"]
-  verbs: ["get", "list", "watch"]
+  verbs: ["get", "list", "update", "patch", "watch"]
 
 {{- if .Values.storagenode.openShiftCluster }}
+# OpenShift only — configures kubelet CPU management and core isolation by
+# creating/patching MachineConfig and KubeletConfig objects; MachineConfigPool
+# is watched to track rollout progress after each config change.
 - apiGroups: ["machineconfiguration.openshift.io"]
   resources: ["machineconfigs", "machineconfigpools", "kubeletconfigs"]
   verbs: ["list", "get", "create", "update", "patch", "watch"]
-- apiGroups: [""]
-  resources: ["nodes"]
-  verbs: ["list", "get", "update", "patch", "watch"]
 {{- end }}
 
 ---

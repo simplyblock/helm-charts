@@ -4,6 +4,8 @@ kind: ClusterRole
 metadata:
   name: simplyblock-operator-manager-role
 rules:
+# events — all controllers post Warning/Normal events against their CRs so
+#   kubectl describe surfaces reconcile progress and errors.
 - apiGroups:
   - ""
   resources:
@@ -11,6 +13,8 @@ rules:
   verbs:
   - create
   - patch
+# nodes — StorageNode controller reads node labels and cordon state; patches
+#   storage.simplyblock.io/* labels to track storage node membership and status.
 - apiGroups:
   - ""
   resources:
@@ -21,6 +25,12 @@ rules:
   - patch
   - update
   - watch
+# persistentvolumeclaims — BackupRestore controller creates a PVC for each
+#   restored volume (ensurePVC in backuprestore_controller.go).
+# persistentvolumes — BackupRestore controller creates a cluster-scoped PV for
+#   each restored volume (ensurePV in backuprestore_controller.go); PVs are
+#   cluster-scoped so a ClusterRole is required. BackupPolicy and StorageBackup
+#   controllers read PVs to reconcile volume state.
 - apiGroups:
   - ""
   resources:
@@ -31,6 +41,10 @@ rules:
   - get
   - list
   - watch
+# pods — NodeDrain controller patches a drain label onto SPDK-proxy pods to
+#   coordinate safe eviction order; StorageCluster controller deletes the
+#   storage-node pod to trigger a DaemonSet restart when node recycling is
+#   needed. list/get/watch are used to observe pod readiness.
 - apiGroups:
   - ""
   resources:
@@ -42,6 +56,13 @@ rules:
   - patch
   - update
   - watch
+# secrets — StorageCluster controller creates/rotates the cluster UUID/secret
+#   and the CSI credentials secret (simplyblock-csi-secret-v2) in the operator
+#   namespace; StorageNode controller reads the cluster secret for API auth.
+# serviceaccounts — operator creates simplyblock-storage-node-sa for the
+#   storage-node DaemonSet pod in every StorageNode namespace.
+# services — StorageNode controller creates/updates the headless storage-node-api
+#   and spdk-proxy Services used for per-pod stable DNS addressing.
 - apiGroups:
   - ""
   resources:
@@ -56,6 +77,9 @@ rules:
   - patch
   - update
   - watch
+# daemonsets — StorageNode controller owns the storage-node DaemonSet lifecycle:
+#   creates it on first StorageNode CR, updates it on image/config changes,
+#   and deletes it on cleanup.
 - apiGroups:
   - apps
   resources:
@@ -68,6 +92,9 @@ rules:
   - patch
   - update
   - watch
+# certificates — cert-manager TLS certificates for the storage-node-api and
+#   spdk-proxy Services; created and rotated by the StorageNode controller
+#   when tls.provider=cert-manager.
 - apiGroups:
   - cert-manager.io
   resources:
@@ -80,6 +107,9 @@ rules:
   - patch
   - update
   - watch
+# endpointslices — StorageNode controller maintains a custom EndpointSlice for
+#   the headless storage-node-api and spdk-proxy Services so each pod has a
+#   stable DNS entry (<nodehostname>.<svc>.<ns>.svc.cluster.local).
 - apiGroups:
   - discovery.k8s.io
   resources:
@@ -92,6 +122,9 @@ rules:
   - patch
   - update
   - watch
+# poddisruptionbudgets — NodeDrain controller creates per-node PDBs
+#   (maxUnavailable=0) to prevent Kubernetes evicting more than one storage-node
+#   pod at a time during cluster upgrades or node drain operations.
 - apiGroups:
   - policy
   resources:
@@ -104,6 +137,10 @@ rules:
   - patch
   - update
   - watch
+# clusterroles + clusterrolebindings — operator creates simplyblock-storage-node-role
+#   and its ClusterRoleBinding so the storage-node DaemonSet SA can manage SPDK
+#   Jobs and Pods on every worker node.
+#   TODO(INCIDENT-003) restrict with resourceNames once remediation is complete.
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -117,6 +154,8 @@ rules:
   - patch
   - update
   - watch
+# storageclasses — operator creates a StorageClass per storage pool so PVCs
+#   can reference the correct simplyblock.io provisioner and pool parameters.
 - apiGroups:
   - storage.k8s.io
   resources:
@@ -127,6 +166,10 @@ rules:
   - get
   - list
   - watch
+# storage.simplyblock.io CRDs — operator owns the full lifecycle of all
+#   simplyblock custom resources: StorageCluster, StorageNode, Pool, Task,
+#   StorageBackup, BackupPolicy, BackupRestore, BackupImport,
+#   SnapshotReplication, ControlPlane.
 - apiGroups:
   - storage.simplyblock.io
   resources:
@@ -148,6 +191,9 @@ rules:
   - patch
   - update
   - watch
+# finalizers — controllers set finalizers on CRs to ensure cleanup logic runs
+#   before deletion (e.g. deregistering the storage node from the cluster,
+#   removing CSI credentials) even if the CR is force-deleted.
 - apiGroups:
   - storage.simplyblock.io
   resources:
@@ -162,6 +208,9 @@ rules:
   - tasks/finalizers
   verbs:
   - update
+# status subresources — controllers write reconcile outcomes (phase, conditions,
+#   lastOperation, message) back to CR status without triggering a full spec
+#   re-reconcile.
 - apiGroups:
   - storage.simplyblock.io
   resources:
