@@ -543,6 +543,27 @@ prometheus:
       registry: "quay.io/simplyblock-io"
       image: defaultbackend-amd64
       tag: "1.5"
+monitoring:
+  # Enable Prometheus integration. Requires Prometheus Operator CRDs to be pre-installed.
+  # Installs a ServiceMonitor for the simplyblock-webappapi metrics endpoint.
+  enabled: false
+  # Whether to create PrometheusRule alerts for simplyblock PVC utilisation.
+  createPrometheusRules: false
+  # The namespace in which to create the PrometheusRule, if different from the release namespace.
+  rulesNamespaceOverride:
+  prometheusRule:
+    # Labels added to the PrometheusRule object.
+    labels: {}
+    # Annotations added to the PrometheusRule object.
+    annotations: {}
+  serviceMonitor:
+    # Labels added to the ServiceMonitor object.
+    labels: {}
+    # Annotations added to the ServiceMonitor object.
+    annotations: {}
+    # Scrape interval. Defaults to Prometheus global scrape_interval.
+    interval: 30s
+
 tls:
   enabled: false
 
