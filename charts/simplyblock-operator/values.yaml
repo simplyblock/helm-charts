@@ -72,12 +72,16 @@ controller:
     list:
     - operator: Exists
       effect:
-      key: 
+      key:
       value:
   nodeSelector:
     create: false
-    key: 
+    key:
     value:
+  # Kubernetes service accounts granted full admin access to the API.
+  # Comma-separated fully-qualified names,
+  # e.g. ["system:serviceaccount:simplyblock:simplyblock-operator"]
+  k8sAdminServiceAccounts: []
 
 snapshotclass:
   create: true
