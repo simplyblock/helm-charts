@@ -195,7 +195,12 @@ spec:
         - name: FLASK_ENV
           value: "production"
         - name: SB_K8S_ADMIN_SERVICE_ACCOUNTS
-          value: {{ .Values.controller.k8sAdminServiceAccounts | join "," | quote }}
+          {{- $accounts := .Values.controller.k8sAdminServiceAccounts | default list }}
+          {{- if .Values.controller.saAuth.enabled }}
+          {{- $csiSA := printf "system:serviceaccount:%s:simplyblock-csi-controller-sa" .Release.Namespace }}
+          {{- $accounts = append $accounts $csiSA | uniq }}
+          {{- end }}
+          value: {{ $accounts | join "," | quote }}
         volumeMounts:
         - name: fdb-cluster-file
           mountPath: /etc/foundationdb/fdb.cluster
