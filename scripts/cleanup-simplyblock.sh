@@ -44,18 +44,39 @@ for crd in $CRDS; do
     for name in $resources; do
         info "  Removing finalizers from $crd/$name..."
         kubectl patch "$crd" "$name" -n "$NAMESPACE" \
-            --type=json -p='[{"op":"replace","path":"/metadata/finalizers","value":[]}]' \
-            --ignore-not-found 2>/dev/null || true
+            --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || \
+            warn "  Could not patch finalizers on $crd/$name"
         kubectl delete "$crd" "$name" -n "$NAMESPACE" \
             --ignore-not-found --timeout=30s 2>/dev/null || true
     done
 done
 
-# Confirm all CRs removed
+# Confirm all CRs removed — wait up to 30s for terminating objects to clear,
+# then force-wipe any that are stuck.
 section "Confirming CR removal"
+
+info "Waiting for CRs to finish terminating..."
+sleep 5
+
+for crd in $CRDS; do
+    names=$(kubectl get "$crd" -n "$NAMESPACE" --ignore-not-found \
+        -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+    for name in $names; do
+        warn "  $crd/$name still present, force-wiping finalizers..."
+        kubectl patch "$crd" "$name" -n "$NAMESPACE" \
+            --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || \
+            warn "  Could not patch finalizers on $crd/$name"
+        kubectl delete "$crd" "$name" -n "$NAMESPACE" \
+            --ignore-not-found --force --grace-period=0 2>/dev/null || true
+    done
+done
+
+# Final check
+sleep 3
 all_clear=true
 for crd in $CRDS; do
-    remaining=$(kubectl get "$crd" -n "$NAMESPACE" --ignore-not-found 2>/dev/null | grep -v "^NAME" | wc -l | tr -d ' ')
+    remaining=$(kubectl get "$crd" -n "$NAMESPACE" --ignore-not-found \
+        --no-headers 2>/dev/null | wc -l | tr -d ' ')
     if [[ "$remaining" -gt 0 ]]; then
         error "  $crd: $remaining resource(s) still present!"
         all_clear=false
@@ -100,7 +121,7 @@ for pvc in $pvcs; do
     [[ -n "$pv" ]] && pvs_to_delete+=("$pv")
     info "Deleting PVC $pvc (bound to PV: ${pv:-none})..."
     kubectl patch pvc "$pvc" -n "$NAMESPACE" \
-        --type=json -p='[{"op":"replace","path":"/metadata/finalizers","value":[]}]' \
+        --type=merge -p '{"metadata":{"finalizers":[]}}' \
         --ignore-not-found 2>/dev/null || true
     kubectl delete pvc "$pvc" -n "$NAMESPACE" \
         --ignore-not-found --timeout=30s 2>/dev/null || true
@@ -110,7 +131,7 @@ for pv in "${pvs_to_delete[@]:-}"; do
     [[ -z "$pv" ]] && continue
     info "Deleting PV $pv..."
     kubectl patch pv "$pv" \
-        --type=json -p='[{"op":"replace","path":"/metadata/finalizers","value":[]}]' \
+        --type=merge -p '{"metadata":{"finalizers":[]}}' \
         --ignore-not-found 2>/dev/null || true
     kubectl delete pv "$pv" \
         --ignore-not-found --timeout=30s 2>/dev/null || true
@@ -126,7 +147,7 @@ for pv in $released_pvs; do
     if [[ "$claim_ns" == "$NAMESPACE" ]]; then
         info "  Deleting released PV $pv..."
         kubectl patch pv "$pv" \
-            --type=json -p='[{"op":"replace","path":"/metadata/finalizers","value":[]}]' \
+            --type=merge -p '{"metadata":{"finalizers":[]}}' \
             --ignore-not-found 2>/dev/null || true
         kubectl delete pv "$pv" --ignore-not-found --timeout=30s 2>/dev/null || true
     fi
