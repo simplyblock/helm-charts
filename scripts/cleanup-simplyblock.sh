@@ -15,6 +15,8 @@ warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*"; }
 section() { echo -e "\n${YELLOW}=== $* ===${NC}"; }
 
+trap 'error "Script failed unexpectedly at line $LINENO. Some resources may not have been cleaned up."' ERR
+
 if command -v kubectl &>/dev/null; then
     KUBECTL="kubectl"
 elif command -v oc &>/dev/null; then
@@ -75,9 +77,11 @@ for crd in $CRDS; do
     done
 done
 
-# Final check
+# Final check — disable set -e for this block so a kubectl error doesn't
+# kill the script before we can print the actionable error message.
 sleep 3
 all_clear=true
+set +e
 for crd in $CRDS; do
     remaining=$($KUBECTL get "$crd" -n "$NAMESPACE" --ignore-not-found \
         --no-headers 2>/dev/null | wc -l | tr -d ' ')
@@ -88,6 +92,7 @@ for crd in $CRDS; do
         info "  $crd: clean"
     fi
 done
+set -e
 
 if $all_clear; then
     info "All CRs removed successfully."
