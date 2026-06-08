@@ -158,7 +158,27 @@ done
 # ---------------------------------------------------------------------------
 section "Removing CRDs"
 
+# Before deleting each CRD, check for instances in OTHER namespaces.
+# If any exist we cannot safely delete the CRD — inform the user and skip it.
+blocked_crds=()
+
 for crd in $CRDS; do
+    # Find instances outside the target namespace (cluster-scoped resources have no namespace field)
+    orphans=$(kubectl get "$crd" --all-namespaces --ignore-not-found \
+        --no-headers 2>/dev/null | grep -v "^${NAMESPACE}\s" || true)
+
+    if [[ -n "$orphans" ]]; then
+        warn "Cannot delete CRD $crd — instances exist in other namespaces:"
+        echo "$orphans" | while IFS= read -r line; do
+            ns=$(echo "$line" | awk '{print $1}')
+            name=$(echo "$line" | awk '{print $2}')
+            warn "  namespace=$ns  name=$name"
+            warn "  Delete manually: kubectl delete $crd $name -n $ns"
+        done
+        blocked_crds+=("$crd")
+        continue
+    fi
+
     info "Deleting CRD $crd..."
     kubectl delete crd "$crd" --ignore-not-found --timeout=30s 2>/dev/null || true
 done
@@ -168,6 +188,9 @@ section "Confirming CRD removal"
 remaining_crds=$(kubectl get crd -o name 2>/dev/null | grep "$CRD_GROUP" | wc -l | tr -d ' ')
 if [[ "$remaining_crds" -eq 0 ]]; then
     info "All CRDs removed successfully."
+elif [[ "${#blocked_crds[@]}" -gt 0 ]]; then
+    warn "${#blocked_crds[@]} CRD(s) skipped due to instances in other namespaces."
+    warn "Delete the listed resources manually, then re-run this script."
 else
     warn "$remaining_crds CRD(s) still present — may need a moment to propagate."
 fi
