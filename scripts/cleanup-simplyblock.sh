@@ -51,12 +51,6 @@ for crd in $CRDS; do
     done
 done
 
-# Confirm all CRs removed — wait up to 30s for terminating objects to clear,
-# then force-wipe any that are stuck.
-section "Confirming CR removal"
-
-info "Waiting for CRs to finish terminating..."
-sleep 5
 
 for crd in $CRDS; do
     names=$(kubectl get "$crd" -n "$NAMESPACE" --ignore-not-found \
@@ -89,6 +83,7 @@ if $all_clear; then
     info "All CRs removed successfully."
 else
     error "Some CRs could not be removed. Manual intervention may be required."
+    exit 1
 fi
 
 # ---------------------------------------------------------------------------
