@@ -15,6 +15,16 @@ warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*"; }
 section() { echo -e "\n${YELLOW}=== $* ===${NC}"; }
 
+if command -v kubectl &>/dev/null; then
+    KUBECTL="kubectl"
+elif command -v oc &>/dev/null; then
+    KUBECTL="oc"
+    info "kubectl not found, using oc"
+else
+    error "Neither kubectl nor oc found. Please install one and try again."
+    exit 1
+fi
+
 # ---------------------------------------------------------------------------
 # 1. Helm uninstall
 # ---------------------------------------------------------------------------
@@ -33,34 +43,34 @@ fi
 # ---------------------------------------------------------------------------
 section "Removing CRs and finalizers"
 
-CRDS=$(kubectl get crd -o name 2>/dev/null | grep "$CRD_GROUP" | sed 's|customresourcedefinition.apiextensions.k8s.io/||')
+CRDS=$($KUBECTL get crd -o name 2>/dev/null | grep "$CRD_GROUP" | sed 's|customresourcedefinition.apiextensions.k8s.io/||')
 
 for crd in $CRDS; do
-    resources=$(kubectl get "$crd" -n "$NAMESPACE" --ignore-not-found -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+    resources=$($KUBECTL get "$crd" -n "$NAMESPACE" --ignore-not-found -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     if [[ -z "$resources" ]]; then
         continue
     fi
     info "Processing CR: $crd"
     for name in $resources; do
         info "  Removing finalizers from $crd/$name..."
-        kubectl patch "$crd" "$name" -n "$NAMESPACE" \
+        $KUBECTL patch "$crd" "$name" -n "$NAMESPACE" \
             --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || \
             warn "  Could not patch finalizers on $crd/$name"
-        kubectl delete "$crd" "$name" -n "$NAMESPACE" \
+        $KUBECTL delete "$crd" "$name" -n "$NAMESPACE" \
             --ignore-not-found --timeout=30s 2>/dev/null || true
     done
 done
 
 
 for crd in $CRDS; do
-    names=$(kubectl get "$crd" -n "$NAMESPACE" --ignore-not-found \
+    names=$($KUBECTL get "$crd" -n "$NAMESPACE" --ignore-not-found \
         -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     for name in $names; do
         warn "  $crd/$name still present, force-wiping finalizers..."
-        kubectl patch "$crd" "$name" -n "$NAMESPACE" \
+        $KUBECTL patch "$crd" "$name" -n "$NAMESPACE" \
             --type=merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || \
             warn "  Could not patch finalizers on $crd/$name"
-        kubectl delete "$crd" "$name" -n "$NAMESPACE" \
+        $KUBECTL delete "$crd" "$name" -n "$NAMESPACE" \
             --ignore-not-found --force --grace-period=0 2>/dev/null || true
     done
 done
@@ -69,7 +79,7 @@ done
 sleep 3
 all_clear=true
 for crd in $CRDS; do
-    remaining=$(kubectl get "$crd" -n "$NAMESPACE" --ignore-not-found \
+    remaining=$($KUBECTL get "$crd" -n "$NAMESPACE" --ignore-not-found \
         --no-headers 2>/dev/null | wc -l | tr -d ' ')
     if [[ "$remaining" -gt 0 ]]; then
         error "  $crd: $remaining resource(s) still present!"
@@ -92,10 +102,10 @@ fi
 section "Removing remaining workloads in namespace '$NAMESPACE'"
 
 for kind in pod daemonset deployment statefulset replicaset; do
-    count=$(kubectl get "$kind" -n "$NAMESPACE" --ignore-not-found --no-headers 2>/dev/null | wc -l | tr -d ' ')
+    count=$($KUBECTL get "$kind" -n "$NAMESPACE" --ignore-not-found --no-headers 2>/dev/null | wc -l | tr -d ' ')
     if [[ "$count" -gt 0 ]]; then
         info "Deleting ${count} ${kind}(s)..."
-        kubectl delete "$kind" --all -n "$NAMESPACE" \
+        $KUBECTL delete "$kind" --all -n "$NAMESPACE" \
             --ignore-not-found --timeout=60s 2>/dev/null || true
     else
         info "No ${kind}s found."
@@ -107,44 +117,44 @@ done
 # ---------------------------------------------------------------------------
 section "Removing PVCs and associated PVs"
 
-pvcs=$(kubectl get pvc -n "$NAMESPACE" --ignore-not-found -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+pvcs=$($KUBECTL get pvc -n "$NAMESPACE" --ignore-not-found -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
 pvs_to_delete=()
 
 for pvc in $pvcs; do
-    pv=$(kubectl get pvc "$pvc" -n "$NAMESPACE" --ignore-not-found \
+    pv=$($KUBECTL get pvc "$pvc" -n "$NAMESPACE" --ignore-not-found \
         -o jsonpath='{.spec.volumeName}' 2>/dev/null || true)
     [[ -n "$pv" ]] && pvs_to_delete+=("$pv")
     info "Deleting PVC $pvc (bound to PV: ${pv:-none})..."
-    kubectl patch pvc "$pvc" -n "$NAMESPACE" \
+    $KUBECTL patch pvc "$pvc" -n "$NAMESPACE" \
         --type=merge -p '{"metadata":{"finalizers":[]}}' \
         --ignore-not-found 2>/dev/null || true
-    kubectl delete pvc "$pvc" -n "$NAMESPACE" \
+    $KUBECTL delete pvc "$pvc" -n "$NAMESPACE" \
         --ignore-not-found --timeout=30s 2>/dev/null || true
 done
 
 for pv in "${pvs_to_delete[@]:-}"; do
     [[ -z "$pv" ]] && continue
     info "Deleting PV $pv..."
-    kubectl patch pv "$pv" \
+    $KUBECTL patch pv "$pv" \
         --type=merge -p '{"metadata":{"finalizers":[]}}' \
         --ignore-not-found 2>/dev/null || true
-    kubectl delete pv "$pv" \
+    $KUBECTL delete pv "$pv" \
         --ignore-not-found --timeout=30s 2>/dev/null || true
 done
 
 # Also catch Released PVs referencing this namespace
 info "Cleaning up Released PVs from namespace '$NAMESPACE'..."
-released_pvs=$(kubectl get pv --ignore-not-found \
+released_pvs=$($KUBECTL get pv --ignore-not-found \
     -o jsonpath='{range .items[?(@.status.phase=="Released")]}{.metadata.name} {end}' 2>/dev/null || true)
 for pv in $released_pvs; do
-    claim_ns=$(kubectl get pv "$pv" --ignore-not-found \
+    claim_ns=$($KUBECTL get pv "$pv" --ignore-not-found \
         -o jsonpath='{.spec.claimRef.namespace}' 2>/dev/null || true)
     if [[ "$claim_ns" == "$NAMESPACE" ]]; then
         info "  Deleting released PV $pv..."
-        kubectl patch pv "$pv" \
+        $KUBECTL patch pv "$pv" \
             --type=merge -p '{"metadata":{"finalizers":[]}}' \
             --ignore-not-found 2>/dev/null || true
-        kubectl delete pv "$pv" --ignore-not-found --timeout=30s 2>/dev/null || true
+        $KUBECTL delete pv "$pv" --ignore-not-found --timeout=30s 2>/dev/null || true
     fi
 done
 
@@ -159,7 +169,7 @@ blocked_crds=()
 
 for crd in $CRDS; do
     # Find instances outside the target namespace (cluster-scoped resources have no namespace field)
-    orphans=$(kubectl get "$crd" --all-namespaces --ignore-not-found \
+    orphans=$($KUBECTL get "$crd" --all-namespaces --ignore-not-found \
         --no-headers 2>/dev/null | grep -v "^${NAMESPACE}\s" || true)
 
     if [[ -n "$orphans" ]]; then
@@ -168,19 +178,19 @@ for crd in $CRDS; do
             ns=$(echo "$line" | awk '{print $1}')
             name=$(echo "$line" | awk '{print $2}')
             warn "  namespace=$ns  name=$name"
-            warn "  Delete manually: kubectl delete $crd $name -n $ns"
+            warn "  Delete manually: $KUBECTL delete $crd $name -n $ns"
         done
         blocked_crds+=("$crd")
         continue
     fi
 
     info "Deleting CRD $crd..."
-    kubectl delete crd "$crd" --ignore-not-found --timeout=30s 2>/dev/null || true
+    $KUBECTL delete crd "$crd" --ignore-not-found --timeout=30s 2>/dev/null || true
 done
 
 # Confirm CRDs removed
 section "Confirming CRD removal"
-remaining_crds=$(kubectl get crd -o name 2>/dev/null | grep "$CRD_GROUP" | wc -l | tr -d ' ')
+remaining_crds=$($KUBECTL get crd -o name 2>/dev/null | grep "$CRD_GROUP" | wc -l | tr -d ' ')
 if [[ "$remaining_crds" -eq 0 ]]; then
     info "All CRDs removed successfully."
 elif [[ "${#blocked_crds[@]}" -gt 0 ]]; then
@@ -195,4 +205,4 @@ fi
 # ---------------------------------------------------------------------------
 section "Cleanup complete"
 info "Namespace: $NAMESPACE"
-info "If the namespace itself should be removed, run: kubectl delete namespace $NAMESPACE"
+info "If the namespace itself should be removed, run: $KUBECTL delete namespace $NAMESPACE"
