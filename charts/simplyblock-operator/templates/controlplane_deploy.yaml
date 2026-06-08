@@ -195,10 +195,9 @@ spec:
         - name: FLASK_ENV
           value: "production"
         - name: SB_K8S_ADMIN_SERVICE_ACCOUNTS
-          {{- $accounts := .Values.controller.k8sAdminServiceAccounts | default list }}
+          {{- $accounts := list (printf "system:serviceaccount:%s:simplyblock-operator" .Release.Namespace) }}
           {{- if .Values.controller.saAuth.enabled }}
-          {{- $csiSA := printf "system:serviceaccount:%s:simplyblock-csi-controller-sa" .Release.Namespace }}
-          {{- $accounts = append $accounts $csiSA | uniq }}
+          {{- $accounts = append $accounts (printf "system:serviceaccount:%s:simplyblock-csi-controller-sa" .Release.Namespace) }}
           {{- end }}
           value: {{ $accounts | join "," | quote }}
         volumeMounts:
