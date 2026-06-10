@@ -199,6 +199,9 @@ spec:
           {{- if .Values.controller.saAuth.enabled }}
           {{- $accounts = append $accounts (printf "system:serviceaccount:%s:simplyblock-csi-controller-sa" .Release.Namespace) }}
           {{- end }}
+          {{- if .Values.node.saAuth.enabled }}
+          {{- $accounts = append $accounts (printf "system:serviceaccount:%s:simplyblock-csi-node-sa" .Release.Namespace) }}
+          {{- end }}
           value: {{ $accounts | join "," | quote }}
         volumeMounts:
         - name: fdb-cluster-file
