@@ -55,6 +55,6 @@ jobs:
             --title "Helm release: ${{ env.VERSION }}" \
             --body "Automated Helm release for simplyblock-operator ${{ env.VERSION }}" \
             --head "$BRANCH" \
-            --base master
+            --base main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
