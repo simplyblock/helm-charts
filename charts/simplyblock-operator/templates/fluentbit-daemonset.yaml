@@ -48,6 +48,7 @@ spec:
         app: simplyblock-fluent-bit
     spec:
       serviceAccountName: simplyblock-fluent-bit-sa
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

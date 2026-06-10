@@ -37,6 +37,7 @@ spec:
         app: simplyblock-numa-resource-plugin
     spec:
       serviceAccountName: simplyblock-numa-resource-plugin
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       priorityClassName: system-node-critical
       {{- $dsList := .Values.storagenode.daemonsets | default (list) -}}
       {{- if and $storagenodeEnabled (gt (len $dsList) 0) }}

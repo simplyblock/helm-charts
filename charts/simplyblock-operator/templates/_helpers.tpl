@@ -149,6 +149,13 @@ to land them at the right column inside an `env:` list.
 {{- end }}
 {{- end -}}
 
+{{- define "simplyblock.imagePullSecrets" -}}
+{{- with .Values.imagePullSecrets }}
+imagePullSecrets:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end -}}
+
 {{- define "simplyblock.commonContainer" }}
 env:
   - name: SIMPLYBLOCK_LOG_LEVEL

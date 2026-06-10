@@ -12,6 +12,7 @@ spec:
           configMap:
             name: simplyblock-mgmt-api-script-cm
       serviceAccountName: simplyblock-storage-node-service-account
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       containers:
       - name: mgmt-api
         image: "{{ .Values.image.mgmtAPI.repository }}:{{ .Values.image.mgmtAPI.tag }}"

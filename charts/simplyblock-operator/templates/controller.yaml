@@ -28,6 +28,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: simplyblock-csi-controller-sa
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       {{- if .Values.controller.nodeSelector.create }}
       nodeSelector:
         {{ .Values.controller.nodeSelector.key }}: {{ .Values.controller.nodeSelector.value }}

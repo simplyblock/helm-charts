@@ -105,6 +105,7 @@ spec:
         app.kubernetes.io/component: plugin
     spec:
       serviceAccountName: csi-hostpathplugin-sa
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: csi-provisioner
           image: {{ .Values.controlplane.csiHostpathDriver.image.csiProvisioner.repository }}:{{ .Values.controlplane.csiHostpathDriver.image.csiProvisioner.tag }}
