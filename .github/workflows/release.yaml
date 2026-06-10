@@ -32,7 +32,7 @@ jobs:
 
       - name: Update index.yaml
         run: |
-          helm repo index charts/ --url https://simplyblock.github.io/helm-charts
+          helm repo index charts/ --url https://simplyblock.github.io/helm-charts/charts
 
       - name: Prepare release metadata
         id: release_meta
