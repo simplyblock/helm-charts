@@ -788,8 +788,8 @@ spec:
         resources:
           requests:
             storage: {{ .Values.controlplane.observability.minio.storageSize }}
-        {{- if .Values.controlplane.observability.minio.storageClass }}
-        storageClassName: {{ .Values.controlplane.observability.minio.storageClass }}
+        {{- if .Values.storageClass }}
+        storageClassName: {{ .Values.storageClass }}
         {{- end }}
 
 ---
@@ -1181,8 +1181,8 @@ spec:
             name: data-volume
           spec:
             accessModes: [ "ReadWriteOnce" ]
-            {{- if .Values.controlplane.storageclass.name }}
-            storageClassName: {{ .Values.controlplane.storageclass.name }}
+            {{- if .Values.storageClass }}
+            storageClassName: {{ .Values.storageClass }}
             {{- end }}
             resources:
               requests:
@@ -1191,8 +1191,8 @@ spec:
             name: logs-volume
           spec:
             accessModes: [ "ReadWriteOnce" ]
-            {{- if .Values.controlplane.storageclass.name }}
-            storageClassName: {{ .Values.controlplane.storageclass.name }}
+            {{- if .Values.storageClass }}
+            storageClassName: {{ .Values.storageClass }}
             {{- end }}
             resources:
               requests:

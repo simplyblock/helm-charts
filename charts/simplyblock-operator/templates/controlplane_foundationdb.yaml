@@ -285,8 +285,8 @@ spec:
               runAsUser: 0
       volumeClaimTemplate:
         spec:
-          {{- if .Values.controlplane.storageclass.name }}
-          storageClassName: {{ .Values.controlplane.storageclass.name }}
+          {{- if .Values.storageClass }}
+          storageClassName: {{ .Values.storageClass }}
           {{- end }}
           accessModes:
             - ReadWriteOnce
