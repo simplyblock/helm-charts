@@ -1,4 +1,7 @@
 {{- if and .Values.tls.enabled (eq .Values.tls.provider "cert-manager") }}
+{{- if eq (index .Values.tls "cert-manager" "cluster-issuer") "simplyblock-certificate-authority-issuer" }}
+  {{- fail "tls.cert-manager.cluster-issuer must not be \"simplyblock-certificate-authority-issuer\"; that name is reserved for the chart's internal CA issuer" }}
+{{- end }}
 ---
 # The CA Certificate must live in the cert-manager namespace so that the
 # ClusterIssuer below can read its backing secret. ClusterIssuers always look
