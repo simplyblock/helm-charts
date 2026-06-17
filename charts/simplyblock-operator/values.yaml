@@ -555,9 +555,6 @@ tls:
   # Required if provider == cert-manager. Names a ClusterIssuer used to mint
   # the chart's own CA Certificate.
   cert-manager:
-    # When true, the chart creates a self-signed ClusterIssuer whose name is
-    # given by cluster-issuer. Set to false to use an issuer you created yourself.
-    createSelfSignedIssuer: true
     cluster-issuer: selfsigned
     # Namespace where cert-manager is installed. The chart's CA secret is placed
     # here so that the ClusterIssuer can locate it (ClusterIssuers always read CA

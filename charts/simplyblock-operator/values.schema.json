@@ -15,7 +15,6 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "createSelfSignedIssuer": { "type": "boolean" },
             "cluster-issuer": { "type": "string" },
             "namespace": { "type": "string" }
           }
