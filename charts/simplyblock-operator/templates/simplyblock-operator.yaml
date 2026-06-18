@@ -25,6 +25,7 @@ spec:
         runAsGroup: 65532
         fsGroup: 65532
       serviceAccountName: simplyblock-operator
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       {{- if .Values.controlplane.nodeSelector.create }}
       nodeSelector:
         {{ .Values.controlplane.nodeSelector.key }}: {{ .Values.controlplane.nodeSelector.value }}

@@ -30,6 +30,7 @@ spec:
         - name: fdb-binaries
           emptyDir: {}
       serviceAccountName: simplyblock-fdb-controller-manager
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       initContainers:
         - name: foundationdb-kubernetes-init-7-3
           image: {{ .Values.controlplane.foundationdb.image.monitor.repository }}:{{ .Values.controlplane.foundationdb.image.monitor.tag }}
@@ -251,6 +252,7 @@ spec:
       - knob_disable_posix_kernel_aio=1
       podTemplate:
         spec:
+          {{- include "simplyblock.imagePullSecrets" . | nindent 10 }}
           containers:
           - name: foundationdb
             resources:
@@ -297,6 +299,7 @@ spec:
     storage:
       podTemplate:
         spec:
+          {{- include "simplyblock.imagePullSecrets" . | nindent 10 }}
           containers:
           - name: foundationdb
             resources:
@@ -320,6 +323,7 @@ spec:
     log:
       podTemplate:
         spec:
+          {{- include "simplyblock.imagePullSecrets" . | nindent 10 }}
           containers:
           - name: foundationdb
             resources:

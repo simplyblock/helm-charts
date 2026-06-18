@@ -23,6 +23,7 @@ spec:
         app: storage-node-controller
     spec:
       serviceAccountName: simplyblock-storage-node-service-account
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       containers:
       - name: storage-node-controller
         image: "{{ .Values.image.storageNode.repository }}:{{ .Values.image.storageNode.tag }}"

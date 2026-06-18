@@ -57,6 +57,11 @@ image:
     repository: quay.io/simplyblock-io/python
     tag: "3.10"
     pullPolicy: Always
+imagePullSecrets: []
+# example:
+# imagePullSecrets:
+#   - name: my-registry-secret
+
 serviceAccount:
   # Specifies whether a serviceAccount should be created
   create: true

@@ -26,8 +26,9 @@ spec:
         app: simplyblock-admin-control
     spec:
       serviceAccountName: simplyblock-sa
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet 
+      dnsPolicy: ClusterFirstWithHostNet
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -131,6 +132,7 @@ spec:
         app: simplyblock-webappapi
     spec:
       serviceAccountName: simplyblock-sa
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -245,6 +247,7 @@ spec:
         app: simplyblock-monitoring
     spec:
       serviceAccountName: simplyblock-sa
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       {{- if .Values.controlplane.nodeSelector.create }}
@@ -265,7 +268,7 @@ spec:
         value: {{ .value | quote }}
         {{- end }}
       {{- end }}
-      {{- end }} 
+      {{- end }}
       containers:
         - name: storage-node-monitor
           image: "{{ .Values.image.simplyblock.repository }}:{{ .Values.image.simplyblock.tag }}"
@@ -468,6 +471,7 @@ spec:
         app: simplyblock-tasks
     spec:
       serviceAccountName: simplyblock-sa
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
 
@@ -723,6 +727,7 @@ spec:
       labels:
         app: simplyblock-minio
     spec:
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       {{- if .Values.controlplane.nodeSelector.create }}
       nodeSelector:
         {{ .Values.controlplane.nodeSelector.key }}: {{ .Values.controlplane.nodeSelector.value }}
@@ -825,13 +830,14 @@ spec:
     metadata:
       labels:
         app: simplyblock-graylog
-    spec:      
+    spec:
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       securityContext:
         runAsUser: 0
         runAsGroup: 0
         fsGroup: 1100
         supplementalGroups:
-          - 0 
+          - 0
       {{- if .Values.controlplane.nodeSelector.create }}
       nodeSelector:
         {{ .Values.controlplane.nodeSelector.key }}: {{ .Values.controlplane.nodeSelector.value }}
@@ -850,7 +856,7 @@ spec:
         value: {{ .value | quote }}
         {{- end }}
       {{- end }}
-      {{- end }} 
+      {{- end }}
       containers:
         - name: graylog
           image: "{{ .Values.controlplane.observability.graylog.repository }}:{{ .Values.controlplane.observability.graylog.tag }}"
@@ -947,6 +953,7 @@ spec:
       labels:
         app: simplyblock-thanos
     spec:
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       {{- if .Values.controlplane.nodeSelector.create }}
       nodeSelector:
         {{ .Values.controlplane.nodeSelector.key }}: {{ .Values.controlplane.nodeSelector.value }}
@@ -1071,7 +1078,8 @@ spec:
     metadata:
       labels:
         app: simplyblock-grafana
-    spec:      
+    spec:
+      {{- include "simplyblock.imagePullSecrets" . | nindent 6 }}
       securityContext:
         fsGroup: 472
         supplementalGroups:

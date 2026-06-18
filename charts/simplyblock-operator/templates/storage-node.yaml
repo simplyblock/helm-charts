@@ -75,6 +75,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: simplyblock-storage-node-sa
+      {{- include "simplyblock.imagePullSecrets" $ | nindent 6 }}
       nodeSelector:
         {{ .nodeSelector.key }}: {{ .nodeSelector.value }}
       volumes:
