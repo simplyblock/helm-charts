@@ -121,6 +121,12 @@ spec:
                 description: OpenShiftCluster indicates OpenShift-specific behavior
                   should be enabled.
                 type: boolean
+              openShiftMachineConfigPool:
+                description: |-
+                  OpenShiftMachineConfigPool is the name of the MachineConfigPool that storage nodes belong to.
+                  Generated MachineConfig resources will carry the machineconfiguration.openshift.io/role label
+                  set to this value. Defaults to "worker" when unset.
+                type: string
               partitions:
                 description: Partitions is the number of partitions created per backend
                   storage device.
@@ -297,6 +303,36 @@ spec:
                   - startedAt
                   type: object
                 type: array
+              latencyMetrics:
+                description: LatencyMetrics holds per-backend-node fio-measured latency
+                  data for rebalancing decisions.
+                items:
+                  description: |-
+                    NodeLatencyMetrics holds fio-measured 4K NVMe-oF latency for a single backend storage node.
+                    The benchmark volume NQN and connection details are derived at runtime from the node UUID
+                    and the cluster NQN — they are not stored here.
+                  properties:
+                    baselineMeasuredAt:
+                      description: BaselineMeasuredAt is when the baseline was established.
+                      format: date-time
+                      type: string
+                    baselineP50NS:
+                      description: BaselineP50NS is the p50 write latency (nanoseconds)
+                        from the initial empty-cluster benchmark.
+                      format: int64
+                      type: integer
+                    baselineP99NS:
+                      description: BaselineP99NS is the p99 write latency (nanoseconds)
+                        from the initial empty-cluster benchmark.
+                      format: int64
+                      type: integer
+                    nodeUUID:
+                      description: NodeUUID is the backend storage node UUID.
+                      type: string
+                  required:
+                  - nodeUUID
+                  type: object
+                type: array
               nodes:
                 description: Nodes is the observed state of each managed storage node.
                 items:
@@ -356,6 +392,17 @@ spec:
                       type: integer
                   type: object
                 type: array
+              pendingNodeAdds:
+                additionalProperties:
+                  format: date-time
+                  type: string
+                description: |-
+                  PendingNodeAdds records the timestamp when a node-add POST was sent for
+                  each worker hostname. Entries are removed only when all socket nodes for
+                  that worker come online. This is the authoritative guard against duplicate
+                  POSTs — it is a separate map field so patches to Status.Nodes never
+                  inadvertently delete it.
+                type: object
             type: object
         required:
         - spec

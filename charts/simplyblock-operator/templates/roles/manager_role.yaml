@@ -7,6 +7,16 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - configmaps
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - events
   verbs:
   - create
@@ -45,6 +55,12 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - pods/log
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
   - secrets
   - serviceaccounts
   - services
@@ -67,6 +83,16 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
   - watch
 - apiGroups:
   - cert-manager.io
@@ -140,6 +166,7 @@ rules:
   - storageclusters
   - storagenodes
   - tasks
+  - volumemigrations
   verbs:
   - create
   - delete
@@ -160,6 +187,7 @@ rules:
   - storageclusters/finalizers
   - storagenodes/finalizers
   - tasks/finalizers
+  - volumemigrations/finalizers
   verbs:
   - update
 - apiGroups:
@@ -175,6 +203,7 @@ rules:
   - storageclusters/status
   - storagenodes/status
   - tasks/status
+  - volumemigrations/status
   verbs:
   - get
   - patch
