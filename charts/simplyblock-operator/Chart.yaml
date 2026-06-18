@@ -18,6 +18,7 @@ keywords:
 home: https://github.com/simplyblock/helm-charts
 sources:
 - https://github.com/simplyblock/helm-charts/tree/master/charts/simplyblock-operator
+
 dependencies:
   - name: mongodb-kubernetes
     version: 1.4.0 
