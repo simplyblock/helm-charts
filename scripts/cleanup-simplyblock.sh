@@ -45,6 +45,24 @@ section "Removing CRs and finalizers"
 
 CRDS=$($KUBECTL get crd -o name 2>/dev/null | grep "$CRD_GROUP" | sed 's|customresourcedefinition.apiextensions.k8s.io/||')
 
+# Delete StorageClasses created by the operator for each pool.
+# These follow the naming convention: simplyblock-<namespace>-<clusterName>-<poolName>
+# and use the csi.simplyblock.io provisioner.
+# We derive the prefix from StorageCluster CRs (which still exist at this point)
+# so this works even if the pool CRs have already been removed.
+cluster_names=$($KUBECTL get storageclusters.storage.simplyblock.io -n "$NAMESPACE" \
+    --ignore-not-found -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+for cluster_name in $cluster_names; do
+    sc_prefix="simplyblock-${NAMESPACE}-${cluster_name}-"
+    matching_scs=$($KUBECTL get storageclass --ignore-not-found \
+        -o jsonpath='{range .items[?(@.provisioner=="csi.simplyblock.io")]}{.metadata.name}{"\n"}{end}' \
+        2>/dev/null | grep "^${sc_prefix}" || true)
+    for sc in $matching_scs; do
+        info "Deleting StorageClass $sc (cluster: $cluster_name)..."
+        $KUBECTL delete storageclass "$sc" --ignore-not-found --timeout=30s 2>/dev/null || true
+    done
+done
+
 for crd in $CRDS; do
     resources=$($KUBECTL get "$crd" -n "$NAMESPACE" --ignore-not-found -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     if [[ -z "$resources" ]]; then
