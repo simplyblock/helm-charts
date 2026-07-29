@@ -1,0 +1,33 @@
+groups:
+  - name: simplyblock-pvc.rules
+    rules:
+      - alert: SimplyblockPVCUsageNearFull
+        annotations:
+          description: >-
+            PVC {{ $labels.persistentvolumeclaim }} in namespace
+            {{ $labels.namespace }} utilization has crossed 75%.
+            Free up some space or expand the PVC.
+          severity_level: warning
+          storage_type: simplyblock
+        expr: >-
+          kubelet_volume_stats_used_bytes
+          / kubelet_volume_stats_capacity_bytes
+          > 0.75
+        for: 5m
+        labels:
+          severity: warning
+      - alert: SimplyblockPVCUsageCritical
+        annotations:
+          description: >-
+            PVC {{ $labels.persistentvolumeclaim }} in namespace
+            {{ $labels.namespace }} utilization has crossed 85%.
+            Data deletion or PVC expansion is required immediately.
+          severity_level: error
+          storage_type: simplyblock
+        expr: >-
+          kubelet_volume_stats_used_bytes
+          / kubelet_volume_stats_capacity_bytes
+          > 0.85
+        for: 5m
+        labels:
+          severity: critical
