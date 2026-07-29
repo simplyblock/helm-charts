@@ -4,6 +4,10 @@
 ---
 driverName: csi.simplyblock.io
 
+# Storage class used for all operator-managed PVCs (FoundationDB, controlplane, minio).
+# Leave empty to use the cluster default storage class.
+storageClass: ""
+
 image:
   csi:
     repository: quay.io/simplyblock-io/spdkcsi
@@ -265,7 +269,6 @@ controlplane:
       accessKey: minioadmin
       secretKey: minioadmin
       storageSize: 50Gi
-      storageClass:
     fluentbit:
       repository: quay.io/simplyblock-io/fluent-bit
       tag: "1.8.11"
@@ -305,8 +308,7 @@ controlplane:
         repository: quay.io/simplyblock-io/livenessprobe
         tag: v2.15.0
 
-  storageclass:  
-    name:  
+  storageclass:
     allowedTopologyZones: []
 
   foundationdb:
@@ -390,7 +392,6 @@ opensearch:
   persistence:
     enabled: true
     image: quay.io/simplyblock-io/busybox
-    storageClass: 
     size: 40Gi
   image:
     repository: "quay.io/simplyblock-io/opensearch"
@@ -475,7 +476,6 @@ prometheus:
     persistentVolume:
       enabled: true
       size: 20Gi
-      storageClass:
     extraArgs:
       storage.tsdb.min-block-duration: 2h
       storage.tsdb.max-block-duration: 2h
