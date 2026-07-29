@@ -7,7 +7,7 @@ driverName: csi.simplyblock.io
 image:
   csi:
     repository: quay.io/simplyblock-io/spdkcsi
-    tag: v26.2.6
+    tag: v26.2.7
     pullPolicy: Always
   csiProvisioner:
     repository: quay.io/simplyblock-io/csi-provisioner
@@ -39,7 +39,7 @@ image:
     pullPolicy: Always
   simplyblock:
     repository: quay.io/simplyblock-io/simplyblock
-    tag: "26.2.6-PRE"
+    tag: "26.2.7-PRE"
     pullPolicy: Always
   storageNode:
     repository: quay.io/simplyblock-io/storage-node-handler
@@ -47,7 +47,7 @@ image:
     pullPolicy: Always
   operator:
     repository: quay.io/simplyblock-io/simplyblock-operator
-    tag: v26.2.6
+    tag: v26.2.7
     pullPolicy: Always
   numaResource:
     repository: quay.io/simplyblock-io/numa-resource-plugin
@@ -427,74 +427,85 @@ reloader:
       nodeSelector: {}
       tolerations: []
 
-prometheus:
-  simplyblock:
-    prometheusURL: simplyblock-prometheus
-    prometheusPORT: 9090   
-  server:
-    image:
-      repository: quay.io/simplyblock-io/prometheus
-      tag: v2.51.0
-    fullnameOverride: simplyblock-prometheus
+monitoring:
+  prometheusURL: "simplyblock-prometheus"
+  prometheusPORT: "9090"
+  prometheusReplicas: 1
+  thanosPodPrefix: "prometheus-simplyblock-prometheus"
+  thanosHeadlessService: "prometheus-operated"
+
+kube-prometheus-stack:
+  fullnameOverride: "simplyblock"
+
+  grafana:
+    enabled: false
+
+  alertmanager:
+    enabled: false
+
+  prometheusOperator:
+    admissionWebhooks:
+      enabled: false
+
+  prometheus-node-exporter:
     enabled: true
-    statefulSet:
-      enabled: true
-    name: simplyblock-prometheus
-    replicaCount: 1
-    podLabels:
-      app: simplyblock-prometheus
-    podAnnotations:
-      log-collector/enabled: "true"
-      reloader.stakater.com/auto: "true"
-      reloader.stakater.com/configmap: "simplyblock-prometheus-config"
-    nodeSelector: {}
-    tolerations: []
-    affinity:
-      podAntiAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-                - key: app.kubernetes.io/component
-                  operator: In
-                  values:
-                    - simplyblock-prometheus
-            topologyKey: "kubernetes.io/hostname"
-    service:
-      servicePort: 9090
-      type: ClusterIP
-      gRPC:
-        enabled: true
-        servicePort: 10901
-      additionalPorts:
-        - name: http-thanos
-          port: 10902
-          targetPort: 10902
-          protocol: TCP
-    securityContext:
-      fsGroup: 65534
-    persistentVolume:
-      enabled: true
-      size: 20Gi
-      storageClass:
-    extraArgs:
-      storage.tsdb.min-block-duration: 2h
-      storage.tsdb.max-block-duration: 2h
-    sidecarContainers:
-      thanos-sidecar:
+
+  kube-state-metrics:
+    enabled: true
+
+  kubeApiServer:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeProxy:
+    enabled: false
+
+  prometheus:
+    prometheusSpec:
+      image:
+        registry: quay.io
+        repository: simplyblock-io/prometheus
+        tag: v2.51.0
+      replicas: 1
+      podMetadata:
+        labels:
+          app: simplyblock-prometheus
+        annotations:
+          log-collector/enabled: "true"
+      nodeSelector: {}
+      tolerations: []
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - simplyblock-prometheus
+              topologyKey: "kubernetes.io/hostname"
+      securityContext:
+        fsGroup: 65534
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 20Gi
+      additionalArgs:
+        - name: storage.tsdb.min-block-duration
+          value: 2h
+        - name: storage.tsdb.max-block-duration
+          value: 2h
+      thanos:
         image: quay.io/simplyblock-io/thanos:v0.31.0
-        args:
-          - sidecar
-          - --tsdb.path=/prometheus
-          - --prometheus.url=http://localhost:9090
-          - --objstore.config-file=/etc/thanos/objstore.yml
-        ports:
-          - name: grpc
-            containerPort: 10901
-          - name: http
-            containerPort: 10902
+        objectStorageConfigFile: /etc/thanos/objstore.yml
         volumeMounts:
-          - name: storage-volume
-            mountPath: /prometheus
           - name: objstore-config
             mountPath: /etc/thanos
         resources:
@@ -504,55 +515,34 @@ prometheus:
           limits:
             cpu: "250m"
             memory: "1Gi"
-    resources:
-      requests:
-        cpu: "100m"
-        memory: "512Mi"
-      limits:
-        cpu: "500m"
-        memory: "1Gi"
-    configPath: /etc/simplyblock-config/prometheus.yml
-    extraVolumes:
-      - name: simplyblock-prometheus-config
-        configMap:
-          name: simplyblock-prometheus-config
-      - name: objstore-config
-        configMap:
-          name: simplyblock-objstore-config
-      - name: prometheus-client-tls
-        secret:
-          secretName: simplyblock-prometheus-client-tls
-          optional: true
-    extraVolumeMounts:
-      - name: simplyblock-prometheus-config
-        mountPath: /etc/simplyblock-config
-      - name: prometheus-client-tls
-        mountPath: /etc/prometheus/certs
-        readOnly: true
-  alertmanager:
-    enabled: false
-
-  prometheus-pushgateway:
-    enabled: false
-
-  prometheus-node-exporter:
-    enabled: false
-
-  kube-state-metrics:
-    enabled: false
-  configmapReload:
-    prometheus:
-      image:
-        repository: quay.io/simplyblock-io/prometheus-config-reloader
-        tag: v0.72.0
-
-  defaultBackend:
-    enabled: false
-    name: defaultbackend
-    image:
-      registry: "quay.io/simplyblock-io"
-      image: defaultbackend-amd64
-      tag: "1.5"
+      volumes:
+        - name: objstore-config
+          configMap:
+            name: simplyblock-objstore-config
+        - name: prometheus-client-tls
+          secret:
+            secretName: simplyblock-prometheus-client-tls
+            optional: true
+      volumeMounts:
+        - name: prometheus-client-tls
+          mountPath: /etc/prometheus/certs
+          readOnly: true
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "512Mi"
+        limits:
+          cpu: "500m"
+          memory: "1Gi"
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+      additionalScrapeConfigs:
+        - job_name: 'cluster_metrics'
+          static_configs:
+            - targets: ['simplyblock-webappapi:5000']
+          honor_labels: true
+          metrics_path: '/api/v1/cluster/metrics'
 tls:
   enabled: false
 
